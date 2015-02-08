@@ -1,4 +1,4 @@
-/* Bike Computer V1 - with diagnostics
+/* Bike Computer V1.1 - with diagnostics
 
   Using the serial functions signifigantly increases compiled size, use this if you have a problem in execution or are testing.
   Use the version without diagnostics in production (once you work out the bugs of course)
@@ -16,11 +16,16 @@
   
 */
 
+#include <SoftwareSerial.h>
+
+SoftwareSerial lcd(2, 8);  // This is required, to start an instance of an LCD
+const int dispSw = A3;
+
 // D4 and D5 are reserved for I2C
 
 // Headlight
 const int ambientIn = A0; // Analog input pin that the potentiometer is attached to
-const int headlight = 3; // Analog output pin that the LED is attached to
+const int headlight = 3; // Digital output pin that the LED is attached to
 const int incrBy = 5; // Amount to increase or decrease LED brightness by
 int sensorValue = 0; // value read from the pot
 int outputValue = 0; // value output to the PWM (analog out)
@@ -39,6 +44,10 @@ unsigned long previousMillis = 0;
 
 
 void setup() {
+  lcd.begin(9600);  // Start the LCD at 9600 baud
+  clearDisplay();  // Clear the display
+  setBacklight(20);
+  
   // initialize serial communications at 9600 bps:
   Serial.begin(9600);
   Serial.println("Loading bike computer diagnostics.");
@@ -55,6 +64,12 @@ void setup() {
   pinMode(ambientIn, INPUT);
   pinMode(lBnkSw, INPUT);
   pinMode(rBnkSw, INPUT);
+  pinMode(dispSw, INPUT);
+  
+  setLCDCursor(0);
+  lcd.print("c0defox.es BCPU");
+  setLCDCursor(18);
+  lcd.print("Bike Computer");
   
   Serial.println("Let the games begin!");
 }
@@ -77,6 +92,13 @@ void headLight(){ // Main function for determining whether or not to ramp up or 
     outputValue = outputValue - incrBy;
   }
   analogWrite(headlight, outputValue);
+  if(outputValue >= 20){ // Ramp up/down lcd brightness with headlight - anything lower than 20 is too hard to read
+    setBacklight(outputValue);
+    
+    setLCDCursor(16);
+    lcd.print("*"); // Headlight indicator on lcd
+    lcd.print(outputValue); // Brightness level of headlight
+  }
   
   echo("Ambient", String(sensorValue));
   echo("Headlight", String(outputValue));
@@ -100,9 +122,15 @@ void blinker(){ // Controls the blinkers
       
       if(lBnkSt == LOW){
         lBnkSt = HIGH;
+        
+        setLCDCursor(0);
+        lcd.print("<");
         echo("lBlinker", "ON");
       }else{
         lBnkSt = LOW;
+        
+        setLCDCursor(0);
+        lcd.print(" ");
         echo("lBlinker", "OFF");
       }
       
@@ -117,9 +145,15 @@ void blinker(){ // Controls the blinkers
       
       if(rBnkSt == LOW){
         rBnkSt = HIGH;
+        
+        setLCDCursor(15);
+        lcd.print(">");
         echo("rBlinker", "ON");
       }else{
         rBnkSt = LOW;
+        
+        setLCDCursor(15);
+        lcd.print(" ");
         echo("rBlinker", "OFF");
       }
       
@@ -128,7 +162,29 @@ void blinker(){ // Controls the blinkers
   }
 }
 
-void loop() { 
+void setBacklight(byte brightness){
+  lcd.write(0x80);  // send the backlight command
+  lcd.write(brightness);  // send the brightness value
+}
+
+void clearDisplay(){
+  lcd.write(0xFE);  // send the special command
+  lcd.write(0x01);  // send the clear screen command
+}
+
+void setLCDCursor(byte cursor_position){
+  lcd.write(0xFE);  // send the special command
+  lcd.write(0x80);  // send the set cursor command
+  lcd.write(cursor_position);  // send the cursor position
+}
+
+void loop(){ 
+  
+  delay(500);
+  clearDisplay();
+  
+  setLCDCursor(4);
+  lcd.print("MPH: 7.5");
 
   headLight();
   blinker();
